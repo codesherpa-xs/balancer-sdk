@@ -8,7 +8,6 @@ import {
   MetaStablePool,
   LinearPool,
   PhantomStablePool,
-  ComposableStablePool,
 } from '@balancer-labs/sor';
 
 import { AssetHelpers } from '@/lib/utils';
@@ -24,7 +23,6 @@ export type Pool =
       | LinearPool
       | MetaStablePool
       | PhantomStablePool
-      | ComposableStablePool
     ) & { SubgraphType: string };
 
 export class PoolsSource {
@@ -113,9 +111,9 @@ export class PoolsSource {
       } else if (subgraphPool.poolType === 'StablePhantom') {
         const sorPool = PhantomStablePool.fromPool(subgraphPool);
         pool = sorPool as Pool;
-      } else if (subgraphPool.poolType === 'ComposableStable') {
-        const sorPool = ComposableStablePool.fromPool(subgraphPool);
-        pool = sorPool as Pool;
+      // } else if (subgraphPool.poolType === 'ComposableStable') {
+      //   const sorPool = ComposableStablePool.fromPool(subgraphPool);
+      //   pool = sorPool as Pool;
       } else {
         console.error(
           `Unknown pool type or type field missing: ${subgraphPool.poolType} ${subgraphPool.id}`

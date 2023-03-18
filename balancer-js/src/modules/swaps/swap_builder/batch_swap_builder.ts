@@ -38,7 +38,7 @@ class BatchSwapBuilder {
       sender,
       recipient: recipient || sender,
       fromInternalBalance: false,
-      toInternalBalance: false,
+      toInternalBalance: true,
     };
   }
 

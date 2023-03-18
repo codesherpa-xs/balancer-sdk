@@ -59,6 +59,12 @@ export const BALANCER_NETWORK_CONFIG: Record<Network, BalancerNetworkConfig> = {
     },
     poolsToIgnore: [
       '0xbd482ffb3e6e50dc1c437557c3bea2b68f3683ee', // a pool made by an external dev who was playing with a novel rate provider mechanism in production.
+      '0xbc0f2372008005471874e426e86ccfae7b4de79d',
+      '0x2ff1a9dbdacd55297452cfd8a4d94724bc22a5f7',
+      '0x11839d635e2f0270da37e8ef4324d4d5d5432957',
+      '0xf71d0774b214c4cf51e33eb3d30ef98132e4dbaa',
+      '0xf22ff21e17157340575158ad7394e068048dd98b',
+      '0x0afbd58beca09545e4fb67772faf3858e610bcd0',
     ],
     sorConnectingTokens: [
       {
