@@ -7,24 +7,19 @@ import { Wallet } from '@ethersproject/wallet';
 import { JsonRpcProvider, AlchemyProvider, Block } from '@ethersproject/providers';
 import { balancerVault } from '../src/lib/constants/config';
 import { bigToNumber, bigValueInDollar, numberToBigNumber, sleep, strToNumber, SwapResult, Token, valueInDollar } from './arbitrageUtils';
-import { MaxUint256 } from '@ethersproject/constants';
 import { exit } from 'process';
 import { FlashbotsBundleProvider, FlashbotsTransactionResolution } from "@flashbots/ethers-provider-bundle";
 
 dotenv.config();
-const { TRADER_KEY } = process.env;
-const TWAMM_POOL_ID = '0xaf15e6cbe19e30be827f27069cf010b57ce9f3ae0002000000000000000004d3';
-const KNOWN_POOL_ID = '0x96646936b91d6b9d7d0c47c496afbf3d6ec7b6f8000200000000000000000019';
+const { TWAMM_POOL, KNOWN_POOL, TOKEN_1, TOKEN_2, TRADER_KEY } = process.env;
+const TWAMM_POOL_ID = TWAMM_POOL || '';
+const KNOWN_POOL_ID = KNOWN_POOL || '';
+const TOKEN1: string = TOKEN_1 || 'USDC';
+const TOKEN2: string = TOKEN_2 || 'WETH';
 
 const debug = require('debug')('arbitrage:bot4');
 
 const network = Network.MAINNET;
-
-// const INFURA_RPC_URL = `https://mainnet.infura.io/v3/${process.env.INFURA}`;
-
-// const FLASHBOTS_RPC_URL = "https://rpc.flashbots.net"; // For MEV protection.
-// const FB_PROVIDER = new JsonRpcProvider(FLASHBOTS_RPC_URL, network);
-// const FB_WALLET = new Wallet(TRADER_KEY as string, FB_PROVIDER);
 
 const LOCAL_RPC_URL = `http://localhost:8545`;
 const LOCAL_PROVIDER = new JsonRpcProvider(LOCAL_RPC_URL, network);
@@ -53,9 +48,17 @@ const wallet = new Wallet(TRADER_KEY as string, provider);
 const config: BalancerSdkConfig = { network, rpcUrl };
 const balancer = new BalancerSDK(config);
 
-let ETH: Token = { ...ADDRESSES[network].ETH, price: 1251 };
-let token1: Token = { ...ADDRESSES[network].USDC, price: 1 };
-let token2: Token = { ...ADDRESSES[network].WETH, price: 1251 };
+function findToken(symbol: string) {
+    let token = Object.values(ADDRESSES[network]).filter(v => 'symbol' in v && v.symbol == symbol)[0];
+    if(!('symbol' in token) || !('decimals' in token)) {
+        throw Error('Bad config');
+    }
+    return token;
+}
+
+let ETH: Token = { ...ADDRESSES[network].ETH, price: 1700 };
+let token1: Token = { ...findToken(TOKEN1), price: 1 };
+let token2: Token = { ...findToken(TOKEN2), price: 1800 };
 
 let currentBlockNumber: number;
 let currentBlock: Block;
@@ -574,6 +577,8 @@ function local() {
 export async function fetchPrices() {
     const ps = [token1, token2].map((t) => balancer.data.tokenPrices.find(t.address));
     const price = await Promise.all(ps);
+
+    debug(ETH, token1, token2);
 
     if (price[0]?.usd) {
         token1.price = +price[0].usd;
