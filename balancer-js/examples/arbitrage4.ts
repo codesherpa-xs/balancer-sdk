@@ -73,31 +73,37 @@ async function populateTwammBalance(token: Token) {
 
 async function getUnitSwapValue(tokenIn: Token, tokenOut: Token) {
     if (tokenIn.price) {
-        let amount = 1;
+        let valueIn = 1;
         for (let i = 0; i < 10; i++) {
-            const response = await querySimpleFlashSwap(tokenIn, tokenOut, amount / tokenIn.price);
+            // Note: Querying flash swap, so we can get values without necessarily holding reqd
+            // balances. This requires known pool to have good liquidity.
+            // Can maybe replace with QuerySwap.
+            const response = await querySimpleFlashSwap(tokenIn, tokenOut, valueIn / tokenIn.price);
+            debug(response);
 
             if (response.valueOut > 0) {
-                let result = {
-                    value: response.valueOut / amount,
-                    amount: response.amountOut / amount,
-                    profit: response.profit / amount
-                };
-                debug(result);
                 let spotPrice = 0;
                 if(tokenIn.price > tokenOut.price) {
-                    spotPrice = response.amountOut * tokenIn.price / amount;
+                    spotPrice = response.amountOut * tokenIn.price / valueIn;
                 } else {
-                    spotPrice = amount / (response.amountOut * tokenIn.price);
+                    spotPrice = valueIn / (response.amountOut * tokenIn.price);
                 }
                 console.log(`TokenIn: ${tokenIn.symbol}, spotPrice: ${spotPrice}`);
+                // Normalize to $1 worth value in.
+                let result = {
+                    value: response.valueOut / valueIn,
+                    amount: response.amountOut / valueIn,
+                    profit: response.profit / valueIn,
+                    spotPrice: spotPrice
+                };
+                debug(result);
                 return result;
             }
             // If amount too low, multiply by 2 and normalize on return above.
-            amount *= 2;
+            valueIn *= 2;
         }
     }
-    return { value: 0, amount: 0, profit: 0 };
+    return { value: 0, amount: 0, profit: 0, spotPrice: 0 };
 }
 
 async function discoverMinLimit(tokenIn: Token, tokenOut: Token) {
@@ -590,6 +596,37 @@ export async function fetchPrices() {
     }
 }
 
+
+function spotPricesSkewed(token1UnitSwapValue: any, token2UnitSwapValue: any): boolean {
+    let baseToken, mainToken: Token;
+    let mainTokenSpotPrice, baseTokenSpotPrice: number;
+    if(token1.price > token2.price) {
+        baseToken = token2;
+        mainToken = token1;
+        mainTokenSpotPrice = token1UnitSwapValue.spotPrice;
+        baseTokenSpotPrice = token2UnitSwapValue.spotPrice;
+    } else {
+        baseToken = token1;
+        mainToken = token2;
+        mainTokenSpotPrice = token2UnitSwapValue.spotPrice;
+        baseTokenSpotPrice = token1UnitSwapValue.spotPrice;
+    }
+
+    if( baseTokenSpotPrice == 0) {
+        console.log("Invalid spot price");
+        return false;
+    }
+
+    if( mainTokenSpotPrice > mainToken.price * 1.03 || baseTokenSpotPrice < mainToken.price / 1.03) {
+        return true;
+    }
+
+    console.log("Not enough skew to generate profit");
+    console.log(token1UnitSwapValue, token2UnitSwapValue);
+    return false;
+}
+
+
 async function arbitrage() {
 
     console.log("Running against local:", process.argv.indexOf('local') > -1);
@@ -646,13 +683,22 @@ async function arbitrage() {
             fetchPrices();
 
             // Discover better spot price direction.
-            let token1UnitSwapValue = (await getUnitSwapValue(token1, token2)).value;
-            let token2UnitSwapValue = (await getUnitSwapValue(token2, token1)).value;
+            let token1UnitSwapValue = (await getUnitSwapValue(token1, token2));
+            let token2UnitSwapValue = (await getUnitSwapValue(token2, token1));
+
+            if(!spotPricesSkewed(token1UnitSwapValue, token2UnitSwapValue)) {
+                console.timeEnd(currentBlockNumber.toString());
+                await sleep(100);
+                continue;
+            }
 
             let tokenIn, tokenOut: Token;
             let bsResult: SwapResult;
             // Binary search in the higher unit swap value direction.
-            if (token1UnitSwapValue >= token2UnitSwapValue) {
+            if (token1UnitSwapValue.value >= token2UnitSwapValue.value) {
+
+                if (token1UnitSwapValue.spotPrice > token1.price)
+
                 console.time(`binarySearch ${token1.symbol}`);
                 bsResult = await binarySearch(token1, token2);
                 console.timeEnd(`binarySearch ${token1.symbol}`);
