@@ -11,7 +11,7 @@ import { exit } from 'process';
 import { FlashbotsBundleProvider, FlashbotsTransactionResolution } from "@flashbots/ethers-provider-bundle";
 
 dotenv.config();
-const { TWAMM_POOL, KNOWN_POOL, TOKEN_1, TOKEN_2, TRADER_KEY } = process.env;
+const { TWAMM_POOL, KNOWN_POOL, TOKEN_1, TOKEN_2, TRADER_KEY, MONITOR_NAME } = process.env;
 const TWAMM_POOL_ID = TWAMM_POOL || '';
 const KNOWN_POOL_ID = KNOWN_POOL || '';
 const TOKEN1: string = TOKEN_1 || 'USDC';
@@ -32,6 +32,15 @@ let FB_PROVIDER: FlashbotsBundleProvider;
 
 const FB_KEY = `${process.env.FB_KEY}`;
 let FB_ATTEMPTS = 0;
+
+const CRONITOR = require('cronitor')('430a7641cbf643dea4dc7e010244b966');
+let MONITOR: any;
+
+if(MONITOR_NAME && MONITOR_NAME != '') {
+    MONITOR = new CRONITOR.Monitor(MONITOR_NAME);
+    console.log("Initialized Cronitor monitor:", MONITOR_NAME)
+}
+
 
 if (process.argv.indexOf('local') > -1) {
     provider = LOCAL_PROVIDER;
@@ -279,6 +288,7 @@ async function logBalances(token1: Token, token2: Token) {
         console.log(`${token2.symbol}:`, bigToNumber(internalBalances[1], token2), bigToNumber(internalBalances[1], token2) * token2.price);
         let total = bigToNumber(ethBalance, ETH) * ETH.price + bigToNumber(internalBalances[0], token1) * token1.price + bigToNumber(internalBalances[1], token2) * token2.price;
         console.log(`Total account value: ${total}`);
+        pingMonitor('Value', total);
     }
 }
 
@@ -580,6 +590,17 @@ function local() {
     return process.argv.indexOf('local') > -1;
 }
 
+function pingMonitor(message: string, total_account_value?: number) {
+    // send a heartbeat event with a message
+    if(MONITOR && !local()) {
+        if(total_account_value) {
+            MONITOR.ping({message: message, metrics: { count: total_account_value}});
+        } else {
+            MONITOR.ping({message: message});
+        }
+    }
+}
+
 export async function fetchPrices() {
     const ps = [token1, token2].map((t) => balancer.data.tokenPrices.find(t.address));
     const price = await Promise.all(ps);
@@ -668,6 +689,10 @@ async function arbitrage() {
                 } else await sleep(100);
                 continue;
             }
+
+            // send a heartbeat event with a message
+            pingMonitor('Alive');
+
             prevBlockNumber = currentBlockNumber;
             provider.getBlock(currentBlockNumber).then(block => {
                 currentBlock = block;
