@@ -686,7 +686,7 @@ async function arbitrage() {
                         "0x37E11D600", // 15 gwei
                       ]);
                     await provider.send("hardhat_mine", ["0x1"]);
-                } else await sleep(100);
+                } else await sleep(500);
                 continue;
             }
 
